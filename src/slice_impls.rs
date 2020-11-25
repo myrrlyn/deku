@@ -14,17 +14,18 @@ macro_rules! ImplDekuSliceTraits {
         where
             $typ: DekuRead<Ctx>,
         {
+            type Order = <$typ as DekuRead<Ctx>>::Order;
             fn read(
-                input: &BitSlice<Msb0, u8>,
+                input: &BitSlice<<$typ as DekuRead<Ctx>>::Order, u8>,
                 ctx: Ctx,
-            ) -> Result<(&BitSlice<Msb0, u8>, Self), DekuError>
+            ) -> Result<(&BitSlice<<$typ as DekuRead<Ctx>>::Order, u8>, Self), DekuError>
             where
                 Self: Sized,
             {
                 let mut slice: [$typ; $count] = Default::default();
                 let mut rest = input;
                 for i in 0..$count {
-                    let (new_rest, value) = <$typ>::read(rest, ctx)?;
+                    let (new_rest, value) = <$typ as DekuRead<Ctx>>::read(rest, ctx)?;
                     slice[i] = value;
                     rest = new_rest;
                 }
@@ -37,7 +38,12 @@ macro_rules! ImplDekuSliceTraits {
         where
             $typ: DekuWrite<Ctx>,
         {
-            fn write(&self, output: &mut BitVec<Msb0, u8>, ctx: Ctx) -> Result<(), DekuError> {
+            type Order = <$typ as DekuWrite<Ctx>>::Order;
+            fn write(
+                &self,
+                output: &mut BitVec<<$typ as DekuWrite<Ctx>>::Order, u8>,
+                ctx: Ctx,
+            ) -> Result<(), DekuError> {
                 for v in self {
                     v.write(output, ctx)?;
                 }
@@ -96,7 +102,7 @@ mod tests {
         expected: [u16; 2],
         expected_rest: &BitSlice<Msb0, u8>,
     ) {
-        let bit_slice = input.view_bits::<Msb0>();
+        let bit_slice = input.view_bits::<<u16 as DekuRead<()>>::Order>();
 
         let (rest, res_read) = <[u16; 2]>::read(bit_slice, endian).unwrap();
         assert_eq!(expected, res_read);
@@ -108,7 +114,7 @@ mod tests {
         case::normal_be([0xDDCC, 0xBBAA], Endian::Big, vec![0xDD, 0xCC, 0xBB, 0xAA]),
     )]
     fn test_bit_write(input: [u16; 2], endian: Endian, expected: Vec<u8>) {
-        let mut res_write = bitvec![Msb0, u8;];
+        let mut res_write = BitVec::new();
         input.write(&mut res_write, endian).unwrap();
         assert_eq!(expected, res_write.into_vec());
     }
